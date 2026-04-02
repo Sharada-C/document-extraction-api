@@ -17,7 +17,7 @@ This project solves that using a layered hybrid approach:
 - Extracts currency, percentages, and patterns with high precision
 - Ensures no loss of critical numerical data
 
-🔹 Probabilistic Layer (LLM - Gemini Flash)
+🔹 Probabilistic Layer (LLM - Gemini 1.5 Flash)
 
 - Generates concise summaries (2 lines)
 - Performs context-aware sentiment analysis
@@ -38,12 +38,20 @@ This project solves that using a layered hybrid approach:
 
 - Language: Python 3.10+
 - Framework: FastAPI (Async)
-- AI Engine: Google Gemini 2.5 Flash
+- AI Engine: Google Gemini 1.5 Flash
 - OCR & Parsing:
   - Tesseract OCR (Images)
   - PyPDF (PDFs)
   - python-docx (DOCX)
 - Deployment: Render / Railway
+
+---
+
+⚠️ Prerequisites
+
+- Python 3.10+
+- Tesseract OCR Engine (must be installed on your system)
+  👉 https://github.com/tesseract-ocr/tesseract
 
 ---
 
@@ -67,9 +75,11 @@ document-extraction-api/
 ├── src/
 │   ├── main.py          # API routes & core logic
 │   └── utils.py         # OCR + text cleaning
-├── .env                 # API keys (not committed)
-├── requirements.txt     # dependencies
-└── test_api.py          # local testing script
+├── build.sh             # Render build script (installs system dependencies like Tesseract)
+├── render.yaml          # Render deployment configuration (infrastructure as code)
+├── .env                 # Environment variables (excluded from Git)
+├── requirements.txt     # Python dependencies
+└── test_api.py          # Local testing script
 
 ---
 
@@ -86,7 +96,7 @@ pip install -r requirements.txt
 
 3️⃣ Configuration
 
-Create ".env" file:
+Create a ".env" file in the root directory:
 
 GEMINI_API_KEY=your_api_key_here
 TESSERACT_PATH=C:/Program Files/Tesseract-OCR/tesseract.exe
@@ -104,7 +114,7 @@ python -m uvicorn src.main:app --reload
 
 Endpoint
 
-POST /api/document-analyze
+POST https://document-extraction-api-39s3.onrender.com/api/document-analyze
 
 Headers
 
@@ -113,7 +123,7 @@ Content-Type: application/json
 
 Example Request (cURL)
 
-curl -X POST http://localhost:8000/api/document-analyze \
+curl -X POST https://document-extraction-api-39s3.onrender.com/api/document-analyze \
   -H "Content-Type: application/json" \
   -H "x-api-key: sk_track2_987654321" \
   -d '{
@@ -151,13 +161,13 @@ curl -X POST http://localhost:8000/api/document-analyze \
 
 Interactive Swagger UI available at:
 
-http://localhost:8000/docs
+https://document-extraction-api-39s3.onrender.com/docs
 
 ---
 
 ❤️ Health Check
 
-GET /
+GET https://document-extraction-api-39s3.onrender.com/
 
 Response:
 
@@ -167,9 +177,14 @@ Response:
 
 ---
 
-## 🌐 Live Deployment
-- **API Endpoint**: `https://document-extraction-api-39s3.onrender.com/api/document-analyze`
-- **Interactive Docs**: `https://document-extraction-api-39s3.onrender.com/docs`
+🌐 Live Deployment
+
+- API Endpoint: https://document-extraction-api-39s3.onrender.com/api/document-analyze
+- Interactive Swagger Docs: https://document-extraction-api-39s3.onrender.com/docs
+- Health Check: https://document-extraction-api-39s3.onrender.com/
+
+⚡ Note: This API is hosted on a Render Free Instance. If inactive, allow up to 60 seconds for the first request.
+
 ---
 
 🧠 Why Hybrid AI?
@@ -191,7 +206,3 @@ This system combines:
 📌 Note
 
 This project is actively maintained and optimized for performance and accuracy.
-
-This API is hosted on a Render Free Instance. If the API has been inactive, please allow up to 60 seconds for the first request to "wake up" the server.
-
----
