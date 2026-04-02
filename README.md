@@ -180,6 +180,7 @@ Response:
 🌐 Live Deployment
 
 - API Endpoint: https://document-extraction-api-39s3.onrender.com/api/document-analyze
+(Note: This is a POST endpoint. To test, please use the Swagger UI link below or the provided cURL example.)
 - Interactive Swagger Docs: https://document-extraction-api-39s3.onrender.com/docs
 - Health Check: https://document-extraction-api-39s3.onrender.com/
 
