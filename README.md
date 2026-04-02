@@ -159,7 +159,7 @@ curl -X POST https://document-extraction-api-39s3.onrender.com/api/document-anal
 
 📘 API Documentation
 
-Interactive Swagger UI available at:
+Interactive Swagger UI:
 
 https://document-extraction-api-39s3.onrender.com/docs
 
@@ -184,6 +184,23 @@ Response:
 - Health Check: https://document-extraction-api-39s3.onrender.com/
 
 ⚡ Note: This API is hosted on a Render Free Instance. If inactive, allow up to 60 seconds for the first request.
+
+---
+
+🤖 AI Tools Used
+
+- Google Gemini 1.5 Flash → Primary model for summarization and sentiment analysis
+- Gemini (LLM Assistance) → Used for debugging, infrastructure setup (Render), and system optimization
+
+---
+
+⚠️ Known Limitations
+
+- Cold Start Delay
+  Due to Render Free Tier, the first request may take up to 60 seconds
+
+- OCR Accuracy
+  Handwritten or low-quality images may produce less accurate results due to Tesseract limitations
 
 ---
 
