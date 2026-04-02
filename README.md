@@ -167,11 +167,9 @@ Response:
 
 ---
 
-🌐 Live Deployment (To be added)
-
-API: https://your-api-url.com
-Docs: https://your-api-url.com/docs
-
+## 🌐 Live Deployment
+- **API Endpoint**: `https://document-extraction-api-39s3.onrender.com/api/document-analyze`
+- **Interactive Docs**: `https://document-extraction-api-39s3.onrender.com/docs`
 ---
 
 🧠 Why Hybrid AI?
@@ -193,5 +191,7 @@ This system combines:
 📌 Note
 
 This project is actively maintained and optimized for performance and accuracy.
+
+This API is hosted on a Render Free Instance. If the API has been inactive, please allow up to 60 seconds for the first request to "wake up" the server.
 
 ---
