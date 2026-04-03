@@ -38,7 +38,7 @@ This project solves that using a layered hybrid approach:
 
 - Language: Python 3.10+
 - Framework: FastAPI (Async)
-- AI Engine: Google Gemini 1.5 Flash
+- AI Engine: Google Gemini 1.5/2.5 Flash (Dynamic Discovery)
 - OCR & Parsing:
   - Tesseract OCR (Images)
   - PyPDF (PDFs)
@@ -190,7 +190,7 @@ Response:
 
 🤖 AI Tools Used
 
-- Google Gemini 1.5 Flash → Primary model for summarization and sentiment analysis
+- Google Gemini 1.5/2.5 Flash (Dynamic Discovery) → Primary model for summarization and sentiment analysis
 - Gemini (LLM Assistance) → Used for debugging, infrastructure setup (Render), and system optimization
 
 ---
