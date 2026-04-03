@@ -6,7 +6,8 @@ import os
 # CONFIGURATION
 FILE_PATH = "sample2-Cybersecurity Incident Report.docx" 
 FILE_TYPE = "docx" 
-URL = "http://127.0.0.1:8000/api/document-analyze"
+# Replace your localhost URL with this one:
+URL = "https://document-extraction-api-39s3.onrender.com/api/document-analyze"
 API_KEY = "sk_track2_987654321"
 
 def run_test():
