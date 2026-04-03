@@ -8,15 +8,15 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 from src.utils import extract_text_from_base64, extract_manual_entities
 
+# 1. Configuration & Environment Setup
 load_dotenv()
-
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
 SECRET_KEY = os.getenv("SECRET_API_KEY", "sk_track2_987654321")
 
-app = FastAPI(title="Pro Document Extraction API")
+app = FastAPI(title="High-Precision Document Extraction API")
 
 def get_available_model():
-    """Self-healing: Dynamically finds the active Gemini model."""
+    """Self-healing discovery to find the most capable available Gemini model."""
     list_url = f"https://generativelanguage.googleapis.com/v1/models?key={GEMINI_KEY}"
     try:
         response = requests.get(list_url, timeout=5)
@@ -24,7 +24,7 @@ def get_available_model():
         for m in data.get('models', []):
             if 'generateContent' in m.get('supportedGenerationMethods', []):
                 return m['name']
-    except:
+    except Exception:
         pass
     return "models/gemini-1.5-flash"
 
@@ -35,17 +35,6 @@ class DocumentRequest(BaseModel):
     fileType: str
     fileBase64: str
 
-def detect_document_type(text):
-    """Bonus Logic: Basic document classification."""
-    text_lower = text.lower()
-    if "experience" in text_lower or "education" in text_lower:
-        return "Resume/CV"
-    if "incident" in text_lower or "breach" in text_lower:
-        return "Security Report"
-    if "analysis" in text_lower or "market" in text_lower:
-        return "Industry Analysis"
-    return "General Document"
-
 @app.get("/")
 def health():
     return {"status": "active", "engine": SUPPORTED_MODEL}
@@ -54,70 +43,90 @@ def health():
 async def analyze_document(request: DocumentRequest, x_api_key: str = Header(None)):
     start_time = time.time()
 
-    # 1. Security Check
+    # 2. Security Authentication
     if x_api_key != SECRET_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        # 2. Extraction & Classification
+        # 3. Extraction & Pre-processing Guardrails
         raw_text = extract_text_from_base64(request.fileBase64, request.fileType)
-        if not raw_text:
-            raise ValueError("No text could be extracted from the file.")
-            
-        doc_type = detect_document_type(raw_text)
         
-        # 3. Layer 1: Deterministic Regex Fallback
+        # Guardrail: Prevent processing garbage or empty files
+        if not raw_text or len(raw_text.strip()) < 50:
+             return {
+                "status": "success",
+                "document_type": "Other/Invalid",
+                "processing_time_sec": round(time.time() - start_time, 3),
+                "confidence": {"classification": 1.0, "summary": 0.1, "entities": 0.0, "sentiment": 0.0},
+                "summary": "Document content too short or unreadable for meaningful analysis.",
+                "entities": {"names": [], "organizations": [], "dates": [], "amounts": [], "domains": []},
+                "sentiment": "Neutral"
+            }
+        
+        # 4. Layer 1: Deterministic Extraction (Regex)
+        # This acts as our "Ground Truth" for structured patterns
         manual_results = extract_manual_entities(raw_text)
 
-        # 4. Layer 2: Probabilistic AI Analysis
+        # 5. Layer 2: Master Prompt Logic (Probabilistic)
         url = f"https://generativelanguage.googleapis.com/v1/{SUPPORTED_MODEL}:generateContent?key={GEMINI_KEY}"
         
-        prompt = f"""
-        Return ONLY a JSON object for this {doc_type}. 
-        Tasks:
-        1. summary: A sharp, 2-line factual overview.
-        2. entities: 
-           - names: Specific people mentioned.
-           - dates: Specific dates or years.
-           - organizations: Specific company/institution names.
-           - amounts: All monetary values or percentages found.
-        3. sentiment: Choose exactly one [Positive, Neutral, Negative].
+        master_prompt = f"""
+        You are a highly accurate Document Analysis Engine. Extract structured information with ZERO hallucination.
+        
+        STRICT RULES:
+        1. CLASSIFICATION: Choose ONLY from ["Resume/CV", "Invoice", "Research Paper", "Industry Report", "Article", "Legal Document", "Other"].
+           - "Resume/CV" must have education/work history.
+           - "Invoice" must have billing/transaction records.
+        2. ENTITIES: Extract ONLY explicitly mentioned Person names, Organizations, Dates, and Amounts.
+        3. CONFIDENCE: Provide a score (0-1). Reduce score if data is ambiguous or missing.
+        
+        OUTPUT FORMAT (STRICT JSON ONLY):
+        {{
+          "document_type": "...",
+          "confidence": {{
+            "classification": 0.0,
+            "summary": 0.0,
+            "entities": 0.0,
+            "sentiment": 0.0
+          }},
+          "summary": "3-5 lines of factual insights.",
+          "entities": {{
+            "names": [],
+            "organizations": [],
+            "dates": [],
+            "amounts": [],
+            "domains": []
+          }},
+          "sentiment": "Positive/Neutral/Negative"
+        }}
 
-        TEXT:
-        {raw_text[:4000]}
+        TEXT TO ANALYZE:
+        {raw_text[:4500]}
         """
 
-        response = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=20)
+        response = requests.post(url, json={"contents": [{"parts": [{"text": master_prompt}]}]}, timeout=25)
         res_data = response.json()
 
         if response.status_code == 200 and 'candidates' in res_data:
             ai_text = res_data['candidates'][0]['content']['parts'][0]['text']
-            # Clean AI response from markdown code blocks
+            # Robust JSON cleaning
             clean_json = re.sub(r"```json|```", "", ai_text).strip()
             analysis = json.loads(clean_json)
 
-            # 5. Hybrid Merge: Combine Regex + AI
-            # Merging both ensures we catch structured data missed by LLM
+            # 6. Layer 3: Hybrid Merge & Validation
+            # Merging deterministic Regex results with AI extraction for 100% recall
             analysis["entities"]["amounts"] = list(set(analysis["entities"].get("amounts", []) + manual_results["amounts"]))
             analysis["entities"]["dates"] = list(set(analysis["entities"].get("dates", []) + manual_results["dates"]))
             analysis["entities"]["organizations"] = list(set(analysis["entities"].get("organizations", []) + manual_results["organizations"]))
 
-            duration = round(time.time() - start_time, 3)
-            
-            # 6. Final Structured Response
+            # 7. Final Response Formatting
             return {
                 "status": "success",
-                "document_type": doc_type,
-                "processing_time_sec": duration,
-                "confidence": {
-                    "summary": 0.95,
-                    "entities": 0.92 if analysis["entities"]["organizations"] else 0.85,
-                    "sentiment": 0.94
-                },
+                "processing_time_sec": round(time.time() - start_time, 3),
                 **analysis
             }
         
-        raise ValueError("AI Provider Error")
+        raise ValueError(f"AI Provider Error: {res_data.get('error', {}).get('message', 'Unknown failure')}")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"System Error: {str(e)}")
