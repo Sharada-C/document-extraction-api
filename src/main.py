@@ -6,9 +6,8 @@ import re
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
 from dotenv import load_dotenv
-from src.utils import extract_text_from_base64, extract_amounts_regex
+from src.utils import extract_text_from_base64, extract_manual_entities
 
-# 1. Load Environment Variables
 load_dotenv()
 
 GEMINI_KEY = os.getenv("GEMINI_API_KEY")
@@ -17,10 +16,10 @@ SECRET_KEY = os.getenv("SECRET_API_KEY", "sk_track2_987654321")
 app = FastAPI(title="Pro Document Extraction API")
 
 def get_available_model():
-    """Self-healing: Dynamically finds the active Gemini model for the key."""
+    """Self-healing: Dynamically finds the active Gemini model."""
     list_url = f"https://generativelanguage.googleapis.com/v1/models?key={GEMINI_KEY}"
     try:
-        response = requests.get(list_url)
+        response = requests.get(list_url, timeout=5)
         data = response.json()
         for m in data.get('models', []):
             if 'generateContent' in m.get('supportedGenerationMethods', []):
@@ -29,7 +28,6 @@ def get_available_model():
         pass
     return "models/gemini-1.5-flash"
 
-# Global Model Discovery 
 SUPPORTED_MODEL = get_available_model()
 
 class DocumentRequest(BaseModel):
@@ -38,7 +36,7 @@ class DocumentRequest(BaseModel):
     fileBase64: str
 
 def detect_document_type(text):
-    """Simple logic for Document Type Detection bonus points."""
+    """Bonus Logic: Basic document classification."""
     text_lower = text.lower()
     if "experience" in text_lower or "education" in text_lower:
         return "Resume/CV"
@@ -56,19 +54,22 @@ def health():
 async def analyze_document(request: DocumentRequest, x_api_key: str = Header(None)):
     start_time = time.time()
 
-    # Authentication [cite: 6]
+    # 1. Security Check
     if x_api_key != SECRET_KEY:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     try:
-        # 1. Extraction & Cleaning [cite: 2, 3]
+        # 2. Extraction & Classification
         raw_text = extract_text_from_base64(request.fileBase64, request.fileType)
+        if not raw_text:
+            raise ValueError("No text could be extracted from the file.")
+            
         doc_type = detect_document_type(raw_text)
         
-        # 2. Deterministic Regex Fallback 
-        manual_amounts = extract_amounts_regex(raw_text)
+        # 3. Layer 1: Deterministic Regex Fallback
+        manual_results = extract_manual_entities(raw_text)
 
-        # 3. Industry-Level Prompting
+        # 4. Layer 2: Probabilistic AI Analysis
         url = f"https://generativelanguage.googleapis.com/v1/{SUPPORTED_MODEL}:generateContent?key={GEMINI_KEY}"
         
         prompt = f"""
@@ -76,14 +77,14 @@ async def analyze_document(request: DocumentRequest, x_api_key: str = Header(Non
         Tasks:
         1. summary: A sharp, 2-line factual overview.
         2. entities: 
-           - names: Specific people.
-           - dates: Specific dates/years.
-           - organizations: Specific company/institution names (NO generic labels).
-           - amounts: Monetary values or percentages.
-        3. sentiment: Positive, Neutral, or Negative.
+           - names: Specific people mentioned.
+           - dates: Specific dates or years.
+           - organizations: Specific company/institution names.
+           - amounts: All monetary values or percentages found.
+        3. sentiment: Choose exactly one [Positive, Neutral, Negative].
 
         TEXT:
-        {raw_text[:4500]}
+        {raw_text[:4000]}
         """
 
         response = requests.post(url, json={"contents": [{"parts": [{"text": prompt}]}]}, timeout=20)
@@ -91,15 +92,19 @@ async def analyze_document(request: DocumentRequest, x_api_key: str = Header(Non
 
         if response.status_code == 200 and 'candidates' in res_data:
             ai_text = res_data['candidates'][0]['content']['parts'][0]['text']
-            clean_json = ai_text.replace("```json", "").replace("```", "").strip()
+            # Clean AI response from markdown code blocks
+            clean_json = re.sub(r"```json|```", "", ai_text).strip()
             analysis = json.loads(clean_json)
 
-            # Merge Hybrid Results 
-            ai_amounts = analysis.get("entities", {}).get("amounts", [])
-            analysis["entities"]["amounts"] = list(set(ai_amounts + manual_amounts))
+            # 5. Hybrid Merge: Combine Regex + AI
+            # Merging both ensures we catch structured data missed by LLM
+            analysis["entities"]["amounts"] = list(set(analysis["entities"].get("amounts", []) + manual_results["amounts"]))
+            analysis["entities"]["dates"] = list(set(analysis["entities"].get("dates", []) + manual_results["dates"]))
+            analysis["entities"]["organizations"] = list(set(analysis["entities"].get("organizations", []) + manual_results["organizations"]))
 
-            # Add Confidence Scores & Metadata for Judge Appeal
             duration = round(time.time() - start_time, 3)
+            
+            # 6. Final Structured Response
             return {
                 "status": "success",
                 "document_type": doc_type,
