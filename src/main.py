@@ -51,7 +51,6 @@ async def analyze_document(request: DocumentRequest, x_api_key: str = Header(Non
         # 3. Extraction & Pre-processing Guardrails
         raw_text = extract_text_from_base64(request.fileBase64, request.fileType)
         
-        # Guardrail: Prevent processing garbage or empty files
         if not raw_text or len(raw_text.strip()) < 50:
              return {
                 "status": "success",
@@ -63,24 +62,34 @@ async def analyze_document(request: DocumentRequest, x_api_key: str = Header(Non
                 "sentiment": "Neutral"
             }
         
-        # 4. Layer 1: Deterministic Extraction (Regex)
-        # This acts as our "Ground Truth" for structured patterns
+        # 4. NEW: Metadata Hinting Logic
+        # This helps the AI differentiate between 'Education' in a Resume vs 'Education Sector' in a Report.
+        filename_hint = request.fileName.lower()
+        hint_text = ""
+        if any(word in filename_hint for word in ["analysis", "report", "industry"]):
+            hint_text = "SYSTEM NOTE: The filename suggests this is an Industry Report. Prioritize this over Resume/CV."
+        elif any(word in filename_hint for word in ["invoice", "bill", "receipt"]):
+            hint_text = "SYSTEM NOTE: The filename suggests this is an Invoice or Billing document."
+
+        # 5. Layer 1: Deterministic Extraction (Regex)
         manual_results = extract_manual_entities(raw_text)
 
-        # 5. Layer 2: Master Prompt Logic (Probabilistic)
+        # 6. Layer 2: Master Prompt with Contextual Hinting
         url = f"https://generativelanguage.googleapis.com/v1/{SUPPORTED_MODEL}:generateContent?key={GEMINI_KEY}"
         
         master_prompt = f"""
-        You are a highly accurate Document Analysis Engine. Extract structured information with ZERO hallucination.
+        {hint_text}
+        You are a high-precision Document Analysis Engine. Your goal is ZERO hallucination.
         
-        STRICT RULES:
-        1. CLASSIFICATION: Choose ONLY from ["Resume/CV", "Invoice", "Research Paper", "Industry Report", "Article", "Legal Document", "Other"].
-           - "Resume/CV" must have education/work history.
-           - "Invoice" must have billing/transaction records.
-        2. ENTITIES: Extract ONLY explicitly mentioned Person names, Organizations, Dates, and Amounts.
-        3. CONFIDENCE: Provide a score (0-1). Reduce score if data is ambiguous or missing.
+        STRICT CLASSIFICATION RULES:
+        1. "Industry Report": Use for technical analysis, market trends, or whitepapers discussing sectors.
+        2. "Resume/CV": Use ONLY for a personal profile of ONE specific individual's career.
+        3. If the text discusses 'Global sectors', 'Market trends', or 'Innovation' -> It is an Industry Report.
         
-        OUTPUT FORMAT (STRICT JSON ONLY):
+        ENTITY RULES:
+        - Extract ONLY explicitly mentioned Person names, Organizations, Dates, and Amounts.
+        
+        OUTPUT STRICT JSON ONLY:
         {{
           "document_type": "...",
           "confidence": {{
@@ -109,17 +118,14 @@ async def analyze_document(request: DocumentRequest, x_api_key: str = Header(Non
 
         if response.status_code == 200 and 'candidates' in res_data:
             ai_text = res_data['candidates'][0]['content']['parts'][0]['text']
-            # Robust JSON cleaning
             clean_json = re.sub(r"```json|```", "", ai_text).strip()
             analysis = json.loads(clean_json)
 
-            # 6. Layer 3: Hybrid Merge & Validation
-            # Merging deterministic Regex results with AI extraction for 100% recall
+            # 7. Layer 3: Hybrid Merge
             analysis["entities"]["amounts"] = list(set(analysis["entities"].get("amounts", []) + manual_results["amounts"]))
             analysis["entities"]["dates"] = list(set(analysis["entities"].get("dates", []) + manual_results["dates"]))
             analysis["entities"]["organizations"] = list(set(analysis["entities"].get("organizations", []) + manual_results["organizations"]))
 
-            # 7. Final Response Formatting
             return {
                 "status": "success",
                 "processing_time_sec": round(time.time() - start_time, 3),
