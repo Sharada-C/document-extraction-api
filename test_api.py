@@ -4,8 +4,8 @@ import json
 import os
 
 # CONFIGURATION
-FILE_PATH = "sample2-Cybersecurity Incident Report.docx" 
-FILE_TYPE = "docx" 
+FILE_PATH = "sample1-Technology Industry Analysis.pdf" 
+FILE_TYPE = "pdf" 
 # Replace your localhost URL with this one:
 URL = "https://document-extraction-api-39s3.onrender.com/api/document-analyze"
 API_KEY = "sk_track2_987654321"
